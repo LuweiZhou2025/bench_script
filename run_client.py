@@ -1,3 +1,4 @@
+
 import os
 import glob
 import re
@@ -38,26 +39,37 @@ class info:
         # return f"successfuly_prompts={self.successfuly_prompts} GTPS={self.GTPS}, TPS={self.TPS} QPS={self.QPS}  Concurrency={self.Concurrency} TTFT={self.TTFT} TPOT={self.TPOT}\n"
         return f"{self.GTPS}            {self.TPS}          {self.QPS}          {self.Concurrency}          {self.TTFT}             {self.TPOT}         {self.Requests}\n"
 
-
-
 model_path="/models/Qwen3-Coder-480B-A35B-Instruct-FP8"
 model="Qwen3-Coder-480B-A35B-Instruct-FP8"
 
+#tuen data
 # (intputmin, inputmax, outputmin, outputmax)
+# token_list=[# 3.0~3.6k/0.3~0.5k
+#             (3000, 3600, 300, 500, [64, 128,256]),
+#             # # 0.8~1k/1.6~2k
+#             (800, 1000, 1600, 2000, [128,256,512]),
+#             # 3.6~4.4k/1.8~2.2k
+#             (3600, 4400, 1800, 2200, [128, 256, 512]),
+#             # 11~15k/2.5~2.9k
+#             (11000, 15000, 2500, 2900, [128,256]),
+#             # # 16~20k/0.3~0.5k
+#             (16000, 20000, 300, 500, [16, 32])
+#     ]
+
+
 token_list=[# 3.0~3.6k/0.3~0.5k
-            # (3000, 3600, 300, 500),
-            # # # 3.6~4.4k/1.8~2.2k
-            # (3600, 4400, 1800, 2200),
-            # 16~20k/0.3~0.5k
-            (16000, 20000, 300, 500),
+            (800, 1000, 1600, 2000, [256]),
+            (3000, 3600, 300, 500, [64]),
             # # 0.8~1k/1.6~2k
-            # (800, 1000, 1600, 2000),
-            # # 11~15k/2.5~2.9k
-            # (1100, 1500, 2500, 2900)
+            # 3.6~4.4k/1.8~2.2k
+            (3600, 4400, 1800, 2200, [256]),
+            # 11~15k/2.5~2.9k
+            (11000, 15000, 2500, 2900, [128]),
+            # # 16~20k/0.3~0.5k
+            (16000, 20000, 300, 500, [16])
     ]
 
-concurency_list=[512,1024]
-output_tokens=2
+
 num_prompts=0
 dir="log"
 if os.path.exists(dir):
@@ -65,11 +77,12 @@ if os.path.exists(dir):
 os.makedirs(dir, exist_ok=True)
 summary=open(f'{dir}/summary.md','w')
 for iopair in token_list:
-    imin,imax,omin,omax=iopair
+    imin,imax,omin,omax, concurency_list=iopair
     assert omin<=omax and imin<=imax, f'Invalid token range: {iopair}'
     summary.write(f'\ninput: [{imin}-{imax}] / output: [{omin}-{omax}]: \n')
     summary.write(f'--------------------------------------------------------------------------\n')
     summary.write(f'GTPS(tokens/s)   TPS(tokens/s)    QPS(reqs/s)    Concurrency       TTFT(ms)      TPOT(ms)      Requestd done\n')
+    summary.flush()
 
     logdir =f'./{dir}/{imin}_{imax}+{omin}_{omax}'
     if not os.path.exists(logdir):
@@ -80,7 +93,10 @@ for iopair in token_list:
             os.remove(file_path)
     for concurrency in concurency_list:
         # save some timing
-        num_prompts=concurrency*2
+        if (concurrency < 512):
+            num_prompts=concurrency*3
+        else:
+            num_prompts = concurrency*2
         # no need to run big concurrency with big input.
         # if imin == 16000 and concurrency >=64:
         #     continue
@@ -102,7 +118,10 @@ for iopair in token_list:
             # --sla_prefill 3000'''
         print(f'{client_cmd}\n, concurrency:{concurrency}, input:{imin}-{imax}, output:{omin}-{omax}\n')
         ret=os.system(client_cmd)
-        
+        if ret != 0:
+            print(f"!!!!!!!!!!! input: [{imin}-{imax}] / output: [{omin}-{omax}]  concurrency:{concurrency} failed with return code {ret}")
+            continue
+
         pattern = f'{model}_normal_distribution_unknown_server_vllm_tp-1_{imax}*{imin}_{omax}*{omin}_{concurrency}_{num_prompts}*_ai_perf_benchmark.md'
         filter_file = glob.glob(f'{logdir}/{pattern}')
         assert len(filter_file) == 1, f"Expected one result file, found {len(filter_file)} files. list is {filter_file}"
@@ -111,8 +130,10 @@ for iopair in token_list:
             perf_data = f.read()
         i0 = info(perf_data)
         summary.write(i0.__str__())
-        os.sync()
-        
+        summary.flush()
+
     summary.write(f'--------------------------------------------------------------------------\n')
+    summary.flush()
+
 
 summary.close()
