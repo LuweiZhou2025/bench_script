@@ -42,6 +42,11 @@ class info:
 model_path="/models/Qwen3-Coder-480B-A35B-Instruct-FP8"
 model="Qwen3-Coder-480B-A35B-Instruct-FP8"
 
+# use the huggingface format model.
+# model_path=../huggingface/hub/models--Qwen--Qwen3-Coder-480B-A35B-Instruct-FP8/snapshots/xxxxxxxxxxxxxxxxxxx/
+# !!!!!{model} is needs to be updated because kunlun-benchmark would use {model} as result file name '{model}_normal_distribution_unknown_server_vllm_tp-1....'
+# model="xxxxxxxxxxxxxxxxxxx"
+
 #tuen data
 # (intputmin, inputmax, outputmin, outputmax)
 # token_list=[# 3.0~3.6k/0.3~0.5k
@@ -58,15 +63,15 @@ model="Qwen3-Coder-480B-A35B-Instruct-FP8"
 
 
 token_list=[# 3.0~3.6k/0.3~0.5k
-            (800, 1000, 1600, 2000, [256]),
             (3000, 3600, 300, 500, [64]),
-            # # 0.8~1k/1.6~2k
+            # 16~20k/0.3~0.5k
+            (16000, 20000, 300, 500, [16])
+            # 0.8~1k/1.6~2k
+            (800, 1000, 1600, 2000, [256]),
             # 3.6~4.4k/1.8~2.2k
             (3600, 4400, 1800, 2200, [256]),
             # 11~15k/2.5~2.9k
-            (11000, 15000, 2500, 2900, [128]),
-            # # 16~20k/0.3~0.5k
-            (16000, 20000, 300, 500, [16])
+            (11000, 15000, 2500, 2900, [128])
     ]
 
 
