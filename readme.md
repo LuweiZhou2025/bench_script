@@ -6,7 +6,7 @@ docker run --device /dev/kfd --device /dev/dri --security-opt seccomp=unconfined
     -v  /mnt/nfs/huggingface:/root/.cache/huggingface \
     -v  /mnt/nfs:/nfs \
     -v /mnt/nfs/luwei/:/mywork  --workdir /mywork \
-    -e "HF_TOKEN=hf_XXXXXXXXXXXXXXXXXXXXXXXXXX" \
+    -e "HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
     -p 8000:8000 \
     --ipc=host \
     --name mi355_alipoc \
@@ -36,7 +36,7 @@ cd kunlun-benchmark
 #some time would have pypi fetch issue. Just need to appliy follow changes in build.sh
 ```
 #pip install poetry -i https://pypi.tuna.tsinghua.edu.cn/simple
-pip install poetry
+pip install poetry -i  https://pypi.org/simple/
 ```
 
 ## applied the vllm fp8 limiation on MI355.
