@@ -1,5 +1,10 @@
 import re
-
+import sys
+assert len(sys.argv) == 1 or len(sys.argv) == 2, "Please provide exactly one log file path."
+if len(sys.argv) == 2:
+    file_path = sys.argv[1]
+else:
+    file_path = './server.log'
 def extract_MNK_from_logfile(log_file_path):
     """
     从日志文件中提取所有 M、N、K 参数
@@ -19,11 +24,11 @@ def extract_MNK_from_logfile(log_file_path):
             if match:
                 M, N, K = match.groups()
                 if [M,N,K] not in results:
-                    results.append([
+                    results.append([M,N,K])
     return results
 
 # 使用示例
-log_results = extract_MNK_from_logfile('./bench_script/server.log')
+log_results = extract_MNK_from_logfile(file_path)
 
 # nk_filter = [['1792','6144'],['6144','1536'],['160','6144']], qkv and out projeciton
 nk_filter = [['1792','6144'],['6144','1536'],['160','6144']]
@@ -31,11 +36,11 @@ nk_filter = [['1792','6144'],['6144','1536'],['160','6144']]
 mlist = []
 # print(nk_filter)
 for result in log_results:
-    # print(f"{result[0]}, {result[1]}, {result[2]}")
-    nk_item = [result[1],  result[2]]
-    if nk_item in nk_filter:
-        print(f"{result[0]}, {result[1]}, {result[2]}")
-        if int(result[0]) not in mlist:
-            mlist.append(int(result[0]))
+    print(f"{result[0]}, {result[1]}, {result[2]}")
+    # nk_item = [result[1],  result[2]]
+    # if nk_item in nk_filter:
+    #     print(f"{result[0]}, {result[1]}, {result[2]}")
+    #     if int(result[0]) not in mlist:
+    #         mlist.append(int(result[0]))
 # print('----------------------------------------')
 # print(mlist)

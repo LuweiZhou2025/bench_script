@@ -48,6 +48,19 @@ python ./run_client.py
 ```
 
 
+# nv docker
+
+docker run --runtime nvidia --gpus all \
+   -it \
+    -v /data/huggingface/models--nvidia--Qwen3-235B-A22B-NVFP4:/models--nvidia--Qwen3-235B-A22B-NVFP4 \
+    -v /data/huggingface:/models \
+    -v $HOME:/workdir --workdir /workdir \
+    -p 8006:8006 \
+    --ipc=host \
+   --name luwei_vllm_cuda13 \
+    --entrypoint /bin/bash \
+    nvcr.io/nvidia/vllm:25.12.post1-py3
+
 
 
 
