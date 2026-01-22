@@ -40,7 +40,7 @@ class info:
         return f"{self.GTPS}            {self.TPS}          {self.QPS}          {self.Concurrency}          {self.TTFT}             {self.TPOT}         {self.Requests}\n"
 
 model_path="/models/Qwen3-235B-A22B-Instruct-2507-MXFP4"
-model="Qwen3-235B-A22B-Instruct-2507-MXFP4"
+model=os.path.basename(model_path.rstrip('/\\'))
 
 # use the huggingface format model.
 # model_path=../huggingface/hub/models--Qwen--Qwen3-Coder-480B-A35B-Instruct-FP8/snapshots/xxxxxxxxxxxxxxxxxxx/
@@ -48,15 +48,15 @@ model="Qwen3-235B-A22B-Instruct-2507-MXFP4"
 # model="xxxxxxxxxxxxxxxxxxx"
 
 token_list=[# 3.0~3.6k/0.3~0.5k
-            (3000, 3600, 300, 500, [128])
-            # # 16~20k/0.3~0.5k
-            # (16000, 20000, 300, 500, [8, 16,32]),
-            # # 0.8~1k/1.6~2k
-            # (800, 1000, 1600, 2000, [16, 32, 64]),
-            # # 3.6~4.4k/1.8~2.2k
-            # (3600, 4400, 1800, 2200, [16, 32,64]),
-            # # 11~15k/2.5~2.9k
-            # (11000, 15000, 2500, 2900, [8, 16, 32])
+            (3000, 3600, 300, 500, [128]),
+            # 16~20k/0.3~0.5k
+            (16000, 20000, 300, 500, [8, 16,32]),
+            # 0.8~1k/1.6~2k
+            (800, 1000, 1600, 2000, [16, 32, 64]),
+            # 3.6~4.4k/1.8~2.2k
+            (3600, 4400, 1800, 2200, [16, 32,64]),
+            # 11~15k/2.5~2.9k
+            (11000, 15000, 2500, 2900, [8, 16, 32])
     ]
 
 

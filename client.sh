@@ -4,7 +4,7 @@ if [ $# -ge 1 ] && [ "$1" = "p" ]; then
     PROFILE="--profile"
 fi
 
-input_tokens=24000
+input_tokens=3000
 output_tokens=5
 max_concurrency=64
 num_prompts=128
