@@ -34,12 +34,14 @@ class info:
                 m = v.match(line)
                 if (m):
                     setattr(self, k, float(m.group(1)))
+    def get_tpot(self):
+        return self.TPOT
 
     def __repr__(self) -> str:
         # return f"successfuly_prompts={self.successfuly_prompts} GTPS={self.GTPS}, TPS={self.TPS} QPS={self.QPS}  Concurrency={self.Concurrency} TTFT={self.TTFT} TPOT={self.TPOT}\n"
         return f"{self.GTPS}            {self.TPS}          {self.QPS}          {self.Concurrency}          {self.TTFT}             {self.TPOT}         {self.Requests}\n"
 
-model_path="/models/Qwen3-235B-A22B-Instruct-2507-MXFP4"
+model_path="/model/Qwen3-Coder-480B-A35B-Instruct-FP8"
 model=os.path.basename(model_path.rstrip('/\\'))
 
 # use the huggingface format model.
@@ -48,15 +50,15 @@ model=os.path.basename(model_path.rstrip('/\\'))
 # model="xxxxxxxxxxxxxxxxxxx"
 
 token_list=[# 3.0~3.6k/0.3~0.5k
-            (3000, 3600, 300, 500, [128]),
-            # 16~20k/0.3~0.5k
-            (16000, 20000, 300, 500, [8, 16,32]),
-            # 0.8~1k/1.6~2k
-            (800, 1000, 1600, 2000, [16, 32, 64]),
-            # 3.6~4.4k/1.8~2.2k
-            (3600, 4400, 1800, 2200, [16, 32,64]),
+            (3000, 3600, 300, 500, [72, 80]),
+            # # 16~20k/0.3~0.5k
+            (16000, 20000, 300, 500, [16,24]),
+            # # 0.8~1k/1.6~2k
+            (800, 1000, 1600, 2000, [256, 264]),
+            # # 3.6~4.4k/1.8~2.2k
+            (3600, 4400, 1800, 2200, [128, 144, 160]),
             # 11~15k/2.5~2.9k
-            (11000, 15000, 2500, 2900, [8, 16, 32])
+            (11000, 15000, 2500, 2900, [80, 92])
     ]
 
 
@@ -84,14 +86,14 @@ for iopair in token_list:
     for concurrency in concurency_list:
         # save some timing
         if (concurrency < 256):
-            num_prompts=concurrency*3
+            num_prompts=concurrency*2
         else:
             num_prompts = concurrency*2
         # no need to run big concurrency with big input.
         # if imin == 16000 and concurrency >=64:
         #     continue
         print(f"Running test with input tokens [{imin},{imax}], output tokens [{omin},{omax}], concurrency {concurrency}")
-        client_cmd = f'''/workdir/kunlun-benchmark/kunlun-benchmark vllm server \
+        client_cmd = f'''/mywork/bench_script/kunlun-benchmark/kunlun-benchmark vllm server \
             --port 8000 \
             --work_mode manual \
             --max_input_len {imax} \
@@ -121,6 +123,8 @@ for iopair in token_list:
         i0 = info(perf_data)
         summary.write(i0.__str__())
         summary.flush()
+        if float(i0.get_tpot()) > 55.0:
+            break
 
     summary.write(f'--------------------------------------------------------------------------\n')
     summary.flush()
