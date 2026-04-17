@@ -8,8 +8,8 @@
 # export NCCL_CROSS_NIC=0
 # export SGLANG_HOST_IP=10.2.224.5
 # python3 -m sglang.launch_server --model-path Qwen/Qwen3-235B-A22B-Instruct-2507-FP8  \
-#     --load-format dummy --disaggregation-mode decode --disaggregation-ib-device ionic_0,ionic_1,ionic_2,ionic_3,ionic_4,ionic_5,ionic_6,ionic_7 \
-#     --host 10.2.224.5 --port 3002 --trust-remote-code --tp-size 8 --ep-size 8 --dp-size 8 --decode-log-interval 1 --watchdog-timeout 3600 \
+#     --load-format dummy --disaggregation-mode decode --disaggregation-ib-device ${NCCL_IB_HCA} \
+#     --host ${SGLANG_HOST_IP} --port 3002 --trust-remote-code --tp-size 8 --ep-size 8 --dp-size 8 --decode-log-interval 1 --watchdog-timeout 3600 \
 #     --ep-dispatch-algorithm fake --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend aiter --disaggregation-transfer-backend mori --moe-a2a-backend mori \
 #     --enable-dp-attention --moe-dense-tp-size 1 --enable-dp-lm-head --max-running-requests 24 --chunked-prefill-size 16384 --cuda-graph-bs 1 2 3 --disable-radix-cache \
 #     --mem-fraction-static 0.25
@@ -33,18 +33,19 @@ export HIP_LAUNCH_BLOCKING=1
 export TORCH_USE_HIP_DSA=1
 
 #TP8 + EP1/EP8 + without DP attention
-python3 -m sglang.launch_server --model-path Qwen/Qwen3.5-397B-A17B-FP8  --disaggregation-mode decode \
-        --disaggregation-ib-device ionic_0,ionic_1,ionic_2,ionic_3,ionic_4,ionic_5,ionic_6,ionic_7 \
-        --host 10.2.224.5 --port 3002 --trust-remote-code --tp-size 8 --ep-size 1  --decode-log-interval 1 --watchdog-timeout 3600 --ep-dispatch-algorithm fake \
-        --load-balance-method round_robin --kv-cache-dtype fp8_e4m3 --attention-backend triton --moe-runner-backend triton\
-        --disaggregation-transfer-backend mori --enable-dp-lm-head --mem-fraction-static 0.7 \
-        --max-running-requests 24 --chunked-prefill-size 1024 --disable-radix-cache 2>&1 | tee decoder.log
+# python3 -m sglang.launch_server --model-path Qwen/Qwen3.5-397B-A17B-FP8  --disaggregation-mode decode \
+#         --disaggregation-ib-device ${NCCL_IB_HCA} \
+#         --host ${SGLANG_HOST_IP} --port 3002 --trust-remote-code --tp-size 8 --ep-size 8  --decode-log-interval 1 --watchdog-timeout 3600 --ep-dispatch-algorithm dynamic \
+#         --load-balance-method round_robin  \
+#         --attention-backend triton  \
+#         --disaggregation-transfer-backend mori --enable-dp-lm-head --mem-fraction-static 0.7 \
+#         --max-running-requests 24 --chunked-prefill-size 1024 --disable-radix-cache 2>&1 | tee decoder.log
 
 # DP attention + EP MOE
 
-# python3 -m sglang.launch_server --model-path Qwen/Qwen3.5-397B-A17B-FP8  --disaggregation-mode decode \
-#         --disaggregation-ib-device ionic_0,ionic_1,ionic_2,ionic_3,ionic_4,ionic_5,ionic_6,ionic_7 \
-#         --host 10.2.224.5 --port 3002 --trust-remote-code --tp-size 8 --ep-size 8  --dp-size 8 --enable-dp-attention --moe-a2a-backend mori  --moe-dense-tp-size 1 --decode-log-interval 1 --watchdog-timeout 3600 --ep-dispatch-algorithm fake \
-#         --load-balance-method round_robin  --attention-backend aiter \
-#         --disaggregation-transfer-backend mori --enable-dp-lm-head --mem-fraction-static 0.7 \
-#         --max-running-requests 24 --chunked-prefill-size 1024 --disable-radix-cache 2>&1 | tee decoder.log
+python3 -m sglang.launch_server --model-path Qwen/Qwen3.5-397B-A17B-FP8  --disaggregation-mode decode \
+        --disaggregation-ib-device ${NCCL_IB_HCA} \
+        --host ${SGLANG_HOST_IP} --port 3002 --trust-remote-code --tp-size 8 --ep-size 8  --dp-size 8 --enable-dp-attention --moe-a2a-backend mori --moe-dense-tp-size 1 --decode-log-interval 1 --watchdog-timeout 3600 \
+        --load-balance-method round_robin  --attention-backend triton \
+        --disaggregation-transfer-backend mori --enable-dp-lm-head --mem-fraction-static 0.7 \
+        --max-running-requests 24 --chunked-prefill-size 1024 --disable-radix-cache 2>&1 | tee decoder.log
