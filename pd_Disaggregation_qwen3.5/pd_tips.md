@@ -102,3 +102,30 @@ a2abackend should only be valid in DP attention + EP MOE case.
     ]
 }
 ```
+
+
+# io nic information
+
+```
+ip -6 route show default
+default proto ra metric 100 expires 168sec hoplimit 64 pref low
+        nexthop via fe80::8652:3400:c844:6a06 dev enp137s0 weight 1
+        nexthop via fe80::8652:3400:c846:6d06 dev enp25s0 weight 1
+        nexthop via fe80::8652:3400:c843:b106 dev enp121s0 weight 1
+        nexthop via fe80::8652:3400:c842:d506 dev enp9s0 weight 1
+        nexthop via fe80::8652:3400:c843:7f06 dev enp153s0 weight 1
+        nexthop via fe80::2e5e:abff:fe51:51fd dev enp193s0f0np0 weight 1
+        nexthop via fe80::8652:3400:c840:3c06 dev enp249s0 weight 1
+        nexthop via fe80::8652:3400:c840:5506 dev enp233s0 weight 1
+        nexthop via fe80::8652:3400:c844:7906 dev enp105s0 weight 1
+
+ibv_devinfo -l
+        ionic_0
+        ionic_1
+        ionic_2
+        ionic_3
+        ionic_4
+        ionic_5
+        ionic_6
+        ionic_7
+```
