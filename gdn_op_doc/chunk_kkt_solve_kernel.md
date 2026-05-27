@@ -65,7 +65,8 @@ for i_k in range(cdiv(K, BK)):
 
 设 $M = (I+L)^{-1}$，由 $(I+L)M = I$ 得每一行：
 
-$$M_{i,:} = e_i - \sum_{j<i} L_{i,j} \cdot M_{j,:}$$
+
+$$`M_{i,:} = e_i - \sum_{j<i} L_{i,j} \cdot M_{j,:}`$$
 
 第 $i$ 行只依赖前面已求解的行，因此从上往下逐行计算即可（前向替换）。
 
