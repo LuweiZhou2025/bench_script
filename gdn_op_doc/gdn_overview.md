@@ -6,11 +6,13 @@
 
 Shapes: $S_t \in \mathbb{R}^{D_k \times D_v}$, $k_t \in \mathbb{R}^{D_k}$, $v_t \in \mathbb{R}^{D_v}$, $q_t \in \mathbb{R}^{D_k}$, $o_t \in \mathbb{R}^{D_v}$; scalars $\alpha_t = \exp(g_t)$, $\beta_t$.
 
-$$S_t = S_{t-1} \bigl(\alpha_t (I - \beta_t k_t k_t^T)\bigr) + \beta_t v_t k_t^T \tag{Eq. GDN-mem}$$
+$`S_t = S_{t-1} \bigl(\alpha_t (I - \beta_t k_t k_t^T)\bigr) + \beta_t v_t k_t^T \tag{Eq. GDN-mem}`$
 
-$$= \alpha_t S_{t-1} + \Delta v_t \, k_t^T, \quad \Delta v_t = \beta_t (v_t - \alpha_t S_{t-1} k_t)$$
 
-$$o_t = S_t \, q_t \tag{Eq. GDN-out}$$
+$`= \alpha_t S_{t-1} + \Delta v_t \, k_t^T, \quad \Delta v_t = \beta_t (v_t - \alpha_t S_{t-1} k_t)`$
+
+
+$`o_t = S_t \, q_t \tag{Eq. GDN-out}`$
 
 ## Chunk-level View
 
@@ -36,15 +38,17 @@ Per chunk $[t]$ of length $C$, indices $i, j \in 1..C$, with:
 
 ### State Update
 
-$$S_{[t+1]} = S^\rightarrow_{[t]} + {K^\rightarrow_{[t]}}^T \,\Delta V_{[t]} \tag{Eq. S-update}$$
+$`S_{[t+1]} = S^\rightarrow_{[t]} + {K^\rightarrow_{[t]}}^T \,\Delta V_{[t]} \tag{Eq. S-update}`$
 
-$$= [D_k, D_v] + [D_k, C] \times [C, D_v]$$
+
+$`= [D_k, D_v] + [D_k, C] \times [C, D_v]`$
 
 ### Output
 
-$$O_{[t]} = Q^\leftarrow_{[t]}\,S_{[t]}^T + \bigl(Q_{[t]}\,K_{[t]}^T \odot \Gamma_{[t]}\bigr)\,\Delta V_{[t]} \tag{Eq. O}$$
+$`O_{[t]} = Q^\leftarrow_{[t]}\,S_{[t]}^T + \bigl(Q_{[t]}\,K_{[t]}^T \odot \Gamma_{[t]}\bigr)\,\Delta V_{[t]} \tag{Eq. O}`$
 
-$$= \underbrace{[C, D_k] \times [D_k, D_v]}_{\text{inter-chunk}} + \underbrace{([C, C] \odot [C, C]) \times [C, D_v]}_{\text{intra-chunk}}$$
+
+$`= \underbrace{[C, D_k] \times [D_k, D_v]}_{\text{inter-chunk}} + \underbrace{([C, C] \odot [C, C]) \times [C, D_v]}_{\text{intra-chunk}}`$
 
 ## Implementation Notes / Naming Map
 
@@ -95,7 +99,7 @@ GDN 的 state recurrence $S_{[t+1]} = M_t \cdot S_{[t]} + b_t$ 是关于 $S_{[t]
 
 以 32 chunks × 64 tokens = 2048 tokens、4 GPUs (`cp_size=4`) 为例。
 
-每张卡持有 2 个 segment（前半 seg0 + 后半 seg1），共 $2 \times \text{cp\_size} = 8$ 个 segment 组成因果链：
+每张卡持有 2 个 segment（前半 seg0 + 后半 seg1），共 $`2 \times \text{cp\_size} = 8`$ 个 segment 组成因果链：
 
 ```
 全局因果顺序 (chunk 0 → 31):
@@ -143,7 +147,7 @@ def causal_positions(rank, cp_size):
 | Rank 2 | 2 | 5 | 2 + 5 = **7** |
 | Rank 3 | 3 | 4 | 3 + 4 = **7** |
 
-每张卡总 merge 步数 = $2 \times \text{cp\_size} - 1$，完全均匀。若按顺序切分（非 zigzag），rank 3 需 merge 7 步而 rank 0 只需 0 步，极不均衡。
+每张卡总 merge 步数 = $`2 \times \text{cp\_size} - 1`$，完全均匀。若按顺序切分（非 zigzag），rank 3 需 merge 7 步而 rank 0 只需 0 步，极不均衡。
 
 ### All-Gather 布局 vs 因果顺序
 
@@ -175,9 +179,9 @@ gathered[6] = rank3_seg0    gathered[7] = rank3_seg1
 
 | Phase | 计算 | 通信 | 复杂度 |
 |:---:|------|------|--------|
-| 1 | 每 rank 本地算 $(b, M)$ | 无 | $O(T / \text{cp\_size})$ |
-| 2 | 无 | All-Gather $(b, M)$ | $O(K^2)$ per head — **很小** |
-| 3 | 链式仿射合并求真实 $h_0$ | 无 | $O(\text{cp\_size} \cdot K^2)$ per head |
-| 4 | 用正确 $h_0$ 重跑 `fwd_h` + `fwd_o` | 无 | $O(T / \text{cp\_size})$ |
+| 1 | 每 rank 本地算 $(b, M)$ | 无 | $`O(T / \text{cp\_size})`$ |
+| 2 | 无 | All-Gather $(b, M)$ | $`O(K^2)`$ per head — **很小** |
+| 3 | 链式仿射合并求真实 $h_0$ | 无 | $`O(\text{cp\_size} \cdot K^2)`$ per head |
+| 4 | 用正确 $h_0$ 重跑 `fwd_h` + `fwd_o` | 无 | $`O(T / \text{cp\_size})`$ |
 
 通信量只有 $K \times (V + K)$ per head per segment，比 all-gather QKV 小几个数量级。代价是计算量约 2×（Phase 1 + Phase 4 各跑一遍 recurrence）。
