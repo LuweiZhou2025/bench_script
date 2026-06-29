@@ -51,13 +51,20 @@ def gemm_kernel(
     B = fx.rocdl.make_buffer_tensor(B, max_size=False)
     C = fx.rocdl.make_buffer_tensor(C, max_size=False)
 
+    # !fly.memref<f16, #fly_rocdl.buffer_desc, (128,64,?):(?{i64 div=16},1,64)>)>
+    # shape (bM, bK, k_iter)
     gA_k = fx.flat_divide(A, (BLOCK_M, BLOCK_K))[None, None, bid_x, None]  # (BM, BK, k)
+    # !fly.memref<f16, #fly_rocdl.buffer_desc, ((16,8),(8,8),64):((8,65536),(1,128),1024)>)>
+    # gb_k [bN, bK, k_iter], preshuffle B tensor is (16, N // 16), (8, 4, K // 32))
     gB_k = fx.flat_divide(B, (BLOCK_N, BLOCK_K))[None, None, bid_y, None]  # (BN, BK, k)
     gC = fx.flat_divide(C, (BLOCK_M, BLOCK_N))[None, None, bid_x, bid_y]  # (BM, BN)
 
     # tiled_mma=!fly.tiled_mma<!fly.mma_atom<!fly_rocdl.cdna3.mfma<16x16x16, (f16, f16) -> f32>>, !fly.layout<(1,4,1):(0,1,0)>, !fly.tile<[*|*|(4,4,2):(1,8,4)]>>)>
     thr_mma = tiled_mma.thr_slice(tid)
+    # thr_copy_g2s_A = !fly.tiled_copy<!fly.copy_atom<!fly.universal_copy<128>, 16>, !fly.layout<((8,32),(1,8)):((256,1),(1,32))>, !fly.tile<[32|64]>>' at index: 4)
+    # ((8K, 32m）, (1??, 8k))
     thr_copy_g2s_A = tiled_copy_g2s_A.get_slice(tid)
+    # print(f"###\n:{thr_copy_g2s_A=}")
 
     uni_copy_128b = fx.make_copy_atom(fx.UniversalCopy128b(), fx.Float16)
     buffer_copy_128b = fx.make_copy_atom(fx.rocdl.BufferCopy128b(), fx.Float16)
@@ -65,12 +72,16 @@ def gemm_kernel(
 
     # mma copy tileA:TiledCopy<!fly.copy_atom<!fly_rocdl.cdna3.buffer_copy<128>, 16>, !fly.layout<((16,4,4),(4,(1,2))):((1,128,0),(16,(0,64)))>, !fly.tile<[16:1|32:1]>>
     # mma copy tileB:TiledCopy<!fly.copy_atom<!fly_rocdl.cdna3.buffer_copy<128>, 16>, !fly.layout<((16,4,4),(4,(1,2))):((1,512,16),(64,(0,256)))>, !fly.tile<[64:1|32:1]>>
-    print(f"###\nmma copy tileA:{fx.make_tiled_copy_A(buffer_copy_128b, tiled_mma)}")
-    print(f"###\nmma copy tileB:{fx.make_tiled_copy_B(buffer_copy_128b, tiled_mma)}")
+    # print(f"###\nmma copy tileA:{fx.make_tiled_copy_A(buffer_copy_128b, tiled_mma)}")
+    # print(f"###\nmma copy tileB:{fx.make_tiled_copy_B(buffer_copy_128b, tiled_mma)}")
 
+    # thr_copy_s2r_A： fly.tiled_copy<!fly.copy_atom<!fly_rocdl.cdna3.buffer_copy<128>, 16>, !fly.layout<((16,4,4),(4,(1,2))):((1,128,0),(16,(0,64)))>, !fly.tile<[16:1|32:1]>>)>
+    # 这里好像还没有被thread 划分之后的信息。原色个数还是与fx.make_tiled_copy_A()一致。
     thr_copy_s2r_A = fx.make_tiled_copy_A(buffer_copy_128b, tiled_mma).get_slice(tid)
     thr_copy_g2r_B = fx.make_tiled_copy_B(buffer_copy_128b, tiled_mma).get_slice(tid)
     thr_copy_r2g_C = fx.make_tiled_copy_C(buffer_copy_16b, tiled_mma).get_slice(tid)
+
+    # print(f"###\n:{thr_copy_s2r_A=}")
 
     # preshuffle_tiledB = fx.make_tiled_copy_B(buffer_copy_128b, tiled_mma)
     # fx.utils.print_typst(preshuffle_tiledB, file="preshuffle_tiledB.typ")
@@ -83,36 +94,44 @@ def gemm_kernel(
     # sA=Tensor<Value(%131 = "fly.make_view"(%130, %128) : (!fly.ptr<f16, shared, align<1024>>, !fly.layout<(128,64,2):(64,1,8192)>) -> !fly.memref<f16, shared, (128,64,2):(64,1,8192), align<1024>>)>
     sA = fx.make_view(fx.get_dyn_shared(fx.Float16), composed_layout_A)  # (BM, BK, STAGES_A)
 
+    #!fly.memref<f16, #fly_rocdl.buffer_desc, ((8,1),4,1,?):((1,0),?{i64 div=512},0,64)>)>, why div=512,  8k*8threads_M*4wave ??
+    # ((8k, 1??),4m, 1??, kiter)
     thr_gA_k = thr_copy_g2s_A.partition_S(gA_k)  # (VA, VM, VK, k)
+    #!fly.memref<f16, shared, ((8,1),4,1,2):((1,0),2048,0,8192), align<16>>)>
+    # ((8k, 1??),4m, 1??, 2 LDS entry)
     thr_sA = thr_copy_g2s_A.partition_D(sA)  # (VA, VM, VN, STAGES_A)
 
+    print(f"###\n:{thr_gA_k=}")
+    print(f"###\n:{thr_sA=}")
     # thr_sA_s2r -> !fly.memref<f16, shared, ((8,1),8,2,2):((1,0),1024,32,8192), align<16>>)>
     thr_sA_s2r = thr_copy_s2r_A.partition_S(sA)  # (VA, VM, VK, STAGES_A)
+    # thr_gB_k !fly.memref<f16, #fly_rocdl.buffer_desc, ((8,1),2,2,64):((1,0),262144,512,1024)>)>
     thr_gB_k = thr_copy_g2r_B.partition_S(gB_k)  # (VB, VN, VK, k)
     thr_gC = thr_copy_r2g_C.partition_S(gC)  # (VC, VM, VN)
 
-    # print(f"###\n {thr_copy_g2r_B=}")
+    print(f"###\n {thr_gB_k=}")
     # print(f"###\n {thr_gB_k=}")
 
+    #!fly.memref<f16, register, ((8,1),4,1):((1,0),8,0)>)>, needs 8*4 VGPRS per threads to write data into LDS-ping[128Mx64K]. 4 x  DS_WRITE_128B + 4 x BUFFER_LOAD_128X
     copy_frag_A = fx.make_fragment_like(thr_sA[None, None, None, 0])  # (VA, VM, VN)
 
-    # print(f"###\n {thr_sA=}")
-    # print(f"###\n {copy_frag_A=}")
-
-    print(f"###\n {sA=}")
-    print(f"###\n {thr_sA_s2r=}")
-    print(f"###\n{thr_mma=}")
     # mma_frag_A ->!fly.memref<f16, register, (4,8,(2,2)):(1,16,(4,8))>)>
+    # 32*4 VGPRS for MFMA A regs. M loop is 8, K loop is 4
+    # mma_frag_A coordinate 顺序 (4k, 8m, (2k, 2K), 2stages:(1:16:(4,8))), 这里看物理上的VGPR分配， VGPRs mma_frag_A = VGPRS(8m, 2K, 2k, 4k)
     mma_frag_A = thr_mma.make_fragment_A(sA[None, None, 0])  # (VA, VM, VN)
     # mma_frag_B ->!fly.memref<f16, register, (4,2,(2,2),2):(1,16,(4,8),32)>)>
+    # one stage is one BK, each stage would have 4*2*2*2 = 32, 2 stages would have 64 VGPRs
+    # mma_frag_B coordinate 顺序 (4k, 2n, (2k, 2K), 2stages:(1:16:(4,8),32)), 这里看物理上VGPRs mma_frag_B = VGPRS(2stages, 2n, 2K, 2k, 4k)
     mma_frag_B = thr_mma.make_fragment_B(gB_k, stages=2)  # (VB, VM, VK, 2)
     mma_frag_C = thr_mma.make_fragment_C(gC)  # (VC, VM, VN)
 
-    print(f"###\n {mma_frag_A=}")
-    print(f"###\n {mma_frag_B=}")
-    # mma_frag_A_retile  -> !fly.memref<f16, register, ((8,1),8,2):((1,0),16,8)>)>
+    # mma_frag_A_retile  -> !fly.memref<f16, register, ((8,1),8,2):((1,0),16,8)>)> ，这里表达的VGPRs mma_frag_A_retile物理排序 = VGPRS(8m, 2K, 8k),
+    # 与mma_frag_A 兼容但是访问coordinate的顺序不一致。
+    # coordinate 的顺序((8k, 1???),8m, 2K )
     mma_frag_A_retile = thr_copy_s2r_A.retile(mma_frag_A)
-    # mma_frag_B_retile ->!fly.memref<f16, register, ((8,1),2,2,2):((1,0),16,8,32)>)>
+    # mma_frag_B_retile ->!fly.memref<f16, register, ((8,1),2,2,2):((1,0),16,8,32)>)>, 这里表达的VGPRs mma_frag_B_retile = VGPRS(2stages, 2n, 2K, 8k),
+    # 与mma_frag_B 兼容但是访问coordinate的顺序不一致。
+    # coordinate 的顺序维((8k, 1???),2n, 2k, 2 stages )
     mma_frag_B_retile = thr_copy_g2r_B.retile(mma_frag_B)
     print(f"###\n {mma_frag_A_retile=}")
     print(f"###\n {mma_frag_B_retile=}")
@@ -243,6 +262,7 @@ def preshuffle_gemm(
     tiled_mma = fx.make_tiled_mma(
         fx.make_mma_atom(fx.rocdl.MFMA(16, 16, 16, fx.Float16)),
         fx.make_layout((1, 4, 1), (0, 1, 0)),
+        # fx.make_tile(None, None, fx.make_layout((4, 2, 4), (1, 4, 8))),
         fx.make_tile(None, None, fx.make_layout((4, 4, 2), (1, 8, 4))),
     )
 
